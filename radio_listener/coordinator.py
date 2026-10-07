@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -26,6 +27,7 @@ from radio_listener.scraper.web_watcher import ContestWebScraper
 logger = logging.getLogger("radio_listener.coordinator")
 
 CLIPS_DIR = Path(__file__).resolve().parent.parent / "clips"
+STATE_FILE = Path(settings.STATE_FILE) if settings.STATE_FILE else Path(__file__).resolve().parent.parent / "data" / "state.json"
 CLUE_PRE_ROLL_SEC = 90.0
 CLUE_CAPTURE_SEC = 90.0
 # Whisper runs behind live audio, so keep accepting transcript text a little longer.
@@ -85,16 +87,18 @@ class RadioListenerCoordinator:
             return
         self.is_running = True
         logger.info("Starting RadioListenerCoordinator...")
-        
+        self.load_state()
+
         # Initial seed of clues from contest webpage
         initial_clues = await self.scraper.fetch_current_clues()
         for c in initial_clues:
-            self.clues[c.clue_number] = c
+            self._merge_web_clue(c)
             
         self._utterance_queue = asyncio.Queue(maxsize=8)
         self._tasks.append(asyncio.create_task(self._run_audio_pipeline()))
         self._tasks.append(asyncio.create_task(self._run_transcriber()))
         self._tasks.append(asyncio.create_task(self._run_web_watcher()))
+        self._tasks.append(asyncio.create_task(self._run_state_saver()))
 
     async def stop(self):
         self.is_running = False
@@ -102,7 +106,54 @@ class RadioListenerCoordinator:
         for task in self._tasks:
             task.cancel()
         self._tasks = []
+        self.save_state()
         logger.info("RadioListenerCoordinator stopped.")
+
+    def _merge_web_clue(self, c: ContestClue) -> bool:
+        """Stores a clue read from the website. Returns True if it is new (or replaces an on-air capture)."""
+        existing = self.clues.get(c.clue_number)
+        if existing is not None:
+            c.audio_url = existing.audio_url
+            if existing.source == "web_scraper" and existing.text == c.text:
+                c.discovered_at = existing.discovered_at
+        self.clues[c.clue_number] = c
+        return existing is None or existing.source == "radio_stt"
+
+    def save_state(self):
+        """Persists everything the listener has collected so restarts and redeploys don't wipe it."""
+        state = {
+            "clues": [c.model_dump(mode="json") for c in self.clues.values()],
+            "alerts": [a.model_dump(mode="json") for a in self.alerts],
+            "caller_guesses": [g.model_dump(mode="json") for g in self.caller_guesses],
+            "transcripts": [t.model_dump(mode="json") for t in self.transcripts],
+        }
+        try:
+            STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = STATE_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(state))
+            tmp.replace(STATE_FILE)
+        except Exception as e:
+            logger.error(f"Failed to save state: {e}")
+
+    def load_state(self):
+        if not STATE_FILE.exists():
+            return
+        try:
+            state = json.loads(STATE_FILE.read_text())
+            for c in state.get("clues", []):
+                clue = ContestClue.model_validate(c)
+                self.clues[clue.clue_number] = clue
+            self.alerts.extend(ContestAlert.model_validate(a) for a in state.get("alerts", []))
+            self.caller_guesses.extend(CallerGuess.model_validate(g) for g in state.get("caller_guesses", []))
+            self.transcripts.extend(TranscriptSegment.model_validate(t) for t in state.get("transcripts", []))
+            logger.info(f"Restored state: {len(self.clues)} clues, {len(self.alerts)} alerts, {len(self.caller_guesses)} guesses.")
+        except Exception as e:
+            logger.error(f"Failed to load saved state ({e}); starting fresh.")
+
+    async def _run_state_saver(self):
+        while self.is_running:
+            await asyncio.sleep(15.0)
+            await asyncio.to_thread(self.save_state)
 
     async def _run_web_watcher(self):
         """Polls /shhhhhh/ contest webpage every 30 seconds for newly posted clues."""
@@ -110,12 +161,8 @@ class RadioListenerCoordinator:
             try:
                 clues = await self.scraper.fetch_current_clues()
                 for c in clues:
-                    existing = self.clues.get(c.clue_number)
-                    if existing is None or existing.source == "radio_stt":
+                    if self._merge_web_clue(c):
                         logger.info(f"New clue discovered on website! Clue #{c.clue_number}")
-                        if existing is not None:
-                            c.audio_url = existing.audio_url
-                        self.clues[c.clue_number] = c
                         alert = ContestAlert(
                             id=str(uuid.uuid4()),
                             event_type=EventType.NEW_CLUE,
@@ -132,9 +179,6 @@ class RadioListenerCoordinator:
                         self._broadcast("NEW_CLUE", c.model_dump())
                         await self.pushover_notifier.send_alert(alert)
                         await self.discord_notifier.send_alert(alert)
-                    else:
-                        c.audio_url = existing.audio_url
-                        self.clues[c.clue_number] = c
             except Exception as e:
                 logger.error(f"Error in web watcher loop: {e}")
             await asyncio.sleep(30.0)

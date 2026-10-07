@@ -867,6 +867,10 @@
       const json = JSON.stringify(clues);
       if (json === lastCluesJson) return;
       lastCluesJson = json;
+      const numInput = document.getElementById("manual-clue-num");
+      if (numInput && document.activeElement !== numInput) {
+        numInput.value = clues.reduce((m, c) => Math.max(m, c.clue_number), 0) + 1;
+      }
       const container = document.getElementById("clue-container");
       document.getElementById("clue-counter").textContent = `${clues.length} Clues`;
       if (!clues.length) {

@@ -35,6 +35,7 @@ class Settings(BaseModel):
     # STT settings
     WHISPER_MODEL_SIZE: str = os.getenv("WHISPER_MODEL_SIZE", "distil-large-v3")
     WHISPER_DEVICE: str = os.getenv("WHISPER_DEVICE", "auto") # "cuda" | "cpu" | "auto"
+    STATE_FILE: str = os.getenv("STATE_FILE", "")
     # More accurate model used only to re-transcribe saved clue clips (empty = reuse live model)
     WHISPER_CLIP_MODEL_SIZE: str = os.getenv("WHISPER_CLIP_MODEL_SIZE", "small.en")
     WHISPER_COMPUTE_TYPE: str = os.getenv("WHISPER_COMPUTE_TYPE", "default") # "float16" | "int8" | "default"

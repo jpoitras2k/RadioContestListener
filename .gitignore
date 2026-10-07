@@ -7,3 +7,4 @@ venv/
 *.log
 .pytest_cache/
 clips/
+data/

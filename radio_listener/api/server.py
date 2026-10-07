@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid
 from pathlib import Path
 from typing import List, Dict, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response
@@ -126,12 +127,7 @@ async def scrape_now():
     clues = await coordinator.scraper.fetch_current_clues()
     new_found = 0
     for c in clues:
-        existing = coordinator.clues.get(c.clue_number)
-        is_new = existing is None or existing.source == "radio_stt"
-        if existing is not None:
-            c.audio_url = existing.audio_url
-        coordinator.clues[c.clue_number] = c
-        if is_new:
+        if coordinator._merge_web_clue(c):
             new_found += 1
             coordinator._broadcast("NEW_CLUE", c.model_dump())
     scraper = coordinator.scraper
