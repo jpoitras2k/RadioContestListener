@@ -102,3 +102,28 @@ Open **`http://localhost:4173`** in your browser to access the live dashboard, v
 ```bash
 pytest tests/
 ```
+
+---
+
+## 🚀 1-Click Deployment to a DigitalOcean Droplet
+
+To run the listener 24/7 in the cloud:
+
+1. Spin up a basic **Ubuntu 24.04 Droplet** ($4–$6/month, 1GB or 2GB RAM).
+2. SSH into your Droplet:
+   ```bash
+   ssh root@YOUR_DROPLET_IP
+   ```
+3. Run the automated setup script directly:
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/.../deploy_droplet.sh | bash
+   # Or clone this repository onto the droplet and run:
+   ./deploy_droplet.sh
+   ```
+4. The script automatically installs FFmpeg, creates the Python environment, configures your Discord webhook, and installs a persistent **`systemd` service** (`zone-listener.service`) that restarts automatically on reboots or stream hiccups.
+5. Manage the service:
+   ```bash
+   systemctl status zone-listener
+   journalctl -u zone-listener -f    # View live transcripts and detections
+   ```
+
