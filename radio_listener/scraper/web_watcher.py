@@ -71,7 +71,9 @@ class ContestWebScraper:
             (1, "I’m not in Rome. I’m not in Perth. But you should know, I’m on planet Earth."),
             (2, "The secret resides where an election was called. My oh my…that premier is tall."),
             (3, "Hickory Dickory Dock. The Secret..is on this giant rock."),
-            (4, "I’m protected from sun and protected by waves, but you won’t find me by searching in caves.")
+            (4, "I’m protected from sun and protected by waves, but you won’t find me by searching in caves."),
+            (5, "If you’re not in the water, you might be getting hotter."),
+            (6, "I am in one of 13 places. Where every council has different faces.")
         ]
         res = []
         for num, txt in seed_data:

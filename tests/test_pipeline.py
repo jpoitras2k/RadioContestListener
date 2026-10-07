@@ -79,3 +79,11 @@ async def test_ollama_reasoner_heuristic_fallback():
     assert clue_result.is_actionable_now is True
     assert clue_result.event_type == EventType.NEW_CLUE
     assert clue_result.clue_number == 5
+
+    # Clue extraction with word numbers ("clue number seven")
+    clue7_result = await reasoner.analyze_context(
+        "Here is clue number seven for The Secret: I stand where the ferries depart from the bay."
+    )
+    assert clue7_result.is_actionable_now is True
+    assert clue7_result.event_type == EventType.NEW_CLUE
+    assert clue7_result.clue_number == 7

@@ -27,7 +27,7 @@ RULES = [
     ),
     TriggerRule(
         name="the_secret_clue",
-        pattern=r"\b(the\s+secret|shh+|clue\s*(number|\#)?\s*\d+|new\s+clue|riddle|hickory\s+dickory|not\s+in\s+rome|giant\s+rock)\b",
+        pattern=r"\b(the\s+secret|shh+|clue\s*(number|\#)?\s*(one|two|three|four|five|six|seven|eight|nine|ten|[0-9]+)|new\s+clue|next\s+clue|today'?s\s+clue|here\s+is\s+(your|the)\s+clue|riddle|hickory\s+dickory|not\s+in\s+rome|giant\s+rock)\b",
         event_type=EventType.NEW_CLUE,
         action_type=ActionType.NONE
     ),

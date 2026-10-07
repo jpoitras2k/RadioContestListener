@@ -629,7 +629,12 @@
           <div class="panel-title">
             <span>🕵️</span> "The Secret" Clues (/shhhhhh/)
           </div>
-          <span class="counter-badge" id="clue-counter">4 Clues</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="dismiss-banner-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="scrapeCluesNow()" title="Check thezone.fm/shhhhhh/ for newly posted clues">
+              🔄 Sync
+            </button>
+            <span class="counter-badge" id="clue-counter">0 Clues</span>
+          </div>
         </div>
         <div class="clue-list" id="clue-container">
           <!-- Dynamically populated -->
@@ -729,7 +734,7 @@
               🚨 Trigger Call-In Cue
             </button>
             <button class="sim-btn" onclick="simulateScenario('new_clue')">
-              🕵️ Announce Clue #5
+              🕵️ Announce Clue #7
             </button>
           </div>
           <div class="btn-group">
@@ -758,6 +763,15 @@
           <div class="custom-input-row">
             <input type="text" id="custom-transcript" class="custom-input" placeholder="Type radio dialogue..." />
             <button class="sim-btn" onclick="sendCustomTranscript()">Send</button>
+          </div>
+
+          <div style="margin-top: 0.6rem; font-size: 0.75rem; color: var(--text-muted);">
+            Manually add or correct clue:
+          </div>
+          <div class="custom-input-row" style="gap: 0.4rem;">
+            <input type="number" id="manual-clue-num" class="custom-input" placeholder="#" style="width: 50px; flex: none;" min="1" max="50" value="7" />
+            <input type="text" id="manual-clue-text" class="custom-input" placeholder="Enter clue riddle text..." />
+            <button class="sim-btn" onclick="addManualClue()">Add</button>
           </div>
         </div>
       </div>
@@ -846,12 +860,22 @@
     function renderClues(clues) {
       const container = document.getElementById("clue-container");
       document.getElementById("clue-counter").textContent = `${clues.length} Clues`;
-      if (!clues.length) return;
+      if (!clues.length) {
+        container.innerHTML = `
+          <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 2rem;">
+            No contest clues discovered yet. Click 🔄 Sync to scrape thezone.fm/shhhhhh/
+          </div>
+        `;
+        return;
+      }
       container.innerHTML = clues.map(c => `
         <div class="clue-card">
           <div class="clue-top">
             <span class="clue-num">CLUE #${c.clue_number}</span>
-            <span class="clue-source">${c.source}</span>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <span class="clue-source">${c.source}</span>
+              ${c.source === 'manual_entry' ? `<button onclick="deleteClue(${c.clue_number})" style="background:none; border:none; color:#f87171; cursor:pointer; font-size:0.75rem; padding:0 2px;" title="Delete clue">✕</button>` : ''}
+            </div>
           </div>
           <div class="clue-text">${c.text}</div>
         </div>
@@ -999,7 +1023,7 @@
             const banner = document.getElementById("active-callin-banner");
             if (banner) banner.style.display = "none";
             loadInitialData();
-          } else if (msg.type === "NEW_CLUE") {
+          } else if (msg.type === "NEW_CLUE" || msg.type === "CLUES_UPDATED") {
             loadInitialData();
           } else if (msg.type === "NEW_GUESS") {
             loadInitialData();
@@ -1033,8 +1057,35 @@
     }
 
     async function scrapeCluesNow() {
-      await fetch(`${API_BASE}/api/scrape_now`, { method: 'POST' });
-      setTimeout(loadInitialData, 500);
+      const res = await fetch(`${API_BASE}/api/scrape_now`, { method: 'POST' });
+      const data = await res.json();
+      loadInitialData();
+    }
+
+    async function addManualClue() {
+      const numInput = document.getElementById("manual-clue-num");
+      const textInput = document.getElementById("manual-clue-text");
+      const clue_number = parseInt(numInput.value, 10);
+      const text = textInput.value.trim();
+      if (!clue_number || !text) {
+        alert("Please provide both a clue number and clue text.");
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/clues/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clue_number, text })
+      });
+      const data = await res.json();
+      textInput.value = "";
+      numInput.value = clue_number + 1;
+      loadInitialData();
+    }
+
+    async function deleteClue(clue_number) {
+      if (!confirm(`Delete Clue #${clue_number}?`)) return;
+      await fetch(`${API_BASE}/api/clues/${clue_number}`, { method: 'DELETE' });
+      loadInitialData();
     }
 
     loadInitialData();

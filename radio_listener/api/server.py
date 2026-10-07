@@ -119,9 +119,53 @@ async def get_transcripts():
 @app.post("/api/scrape_now")
 async def scrape_now():
     clues = await coordinator.scraper.fetch_current_clues()
+    new_found = 0
     for c in clues:
+        if c.clue_number not in coordinator.clues:
+            new_found += 1
+            coordinator._broadcast("NEW_CLUE", c.model_dump())
         coordinator.clues[c.clue_number] = c
-    return {"message": "Scraped successfully", "clues_count": len(coordinator.clues)}
+    return {"message": "Scraped successfully", "clues_count": len(coordinator.clues), "new_clues": new_found}
+
+@app.delete("/api/clues/{clue_number}")
+async def delete_clue(clue_number: int):
+    if clue_number in coordinator.clues:
+        del coordinator.clues[clue_number]
+        coordinator._broadcast("CLUES_UPDATED", {})
+        return {"success": True, "message": f"Clue #{clue_number} removed"}
+    return {"success": False, "message": "Clue not found"}
+
+class AddCluePayload(BaseModel):
+    clue_number: int
+    text: str
+
+@app.post("/api/clues/manual")
+async def add_clue_manual(payload: AddCluePayload):
+    clue = ContestClue(
+        clue_number=payload.clue_number,
+        text=payload.text.strip(),
+        source="manual_entry"
+    )
+    coordinator.clues[payload.clue_number] = clue
+    coordinator._broadcast("NEW_CLUE", clue.model_dump())
+    
+    # Broadcast alert as well so history and push notifications capture it
+    alert = ContestAlert(
+        id=str(uuid.uuid4()),
+        event_type=EventType.NEW_CLUE,
+        action_type=ActionType.NONE,
+        title=f"🕵️ THE ZONE: CLUE #{clue.clue_number} ADDED!",
+        summary=clue.text,
+        is_actionable_now=True,
+        clue_number=clue.clue_number,
+        clue_text=clue.text,
+        confidence=1.0
+    )
+    coordinator.alerts.appendleft(alert)
+    coordinator._broadcast("NEW_ALERT", alert.model_dump())
+    await coordinator.discord_notifier.send_alert(alert)
+    await coordinator.pushover_notifier.send_alert(alert)
+    return {"success": True, "clue": clue, "alert": alert}
 
 class CustomTranscriptPayload(BaseModel):
     text: str
@@ -140,7 +184,7 @@ async def simulate_scenario(scenario: str):
             "to give your guess for The Secret!"
         ),
         "new_clue": (
-            "We have a brand new clue for The Secret! Clue number five: "
+            "We have a brand new clue for The Secret! Clue number seven: "
             "I stand where the ferries depart from the bay, watching the islands both night and day."
         ),
         "caller_guess": (

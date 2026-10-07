@@ -165,16 +165,24 @@ class OllamaReasoner:
             )
 
         # Clue detection
-        clue_match = re.search(r"clue\s*(?:number|\#)?\s*(\d+)", t)
+        word_to_num = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10
+        }
+        clue_match = re.search(r"clue\s*(?:number|\#)?\s*(one|two|three|four|five|six|seven|eight|nine|ten|\d+)", t)
+        clue_num = None
+        if clue_match:
+            val = clue_match.group(1).lower()
+            clue_num = int(val) if val.isdigit() else word_to_num.get(val)
+
         if "clue" in t or "the secret" in t or "riddle" in t:
-            clue_num = int(clue_match.group(1)) if clue_match else None
             return AnalysisResult(
                 is_actionable_now=True,
                 event_type=EventType.NEW_CLUE,
                 clue_number=clue_num,
                 clue_text=transcript.strip(),
                 confidence=0.88,
-                summary=f"New contest clue detected ({clue_num or 'Secret clue'})"
+                summary=f"New contest clue detected ({f'Clue #{clue_num}' if clue_num else 'Secret clue'})"
             )
 
         return AnalysisResult(

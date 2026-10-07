@@ -89,7 +89,7 @@ class RadioListenerCoordinator:
         logger.info("RadioListenerCoordinator stopped.")
 
     async def _run_web_watcher(self):
-        """Polls /shhhhhh/ contest webpage every 60 seconds."""
+        """Polls /shhhhhh/ contest webpage every 30 seconds for newly posted clues."""
         while self.is_running:
             try:
                 clues = await self.scraper.fetch_current_clues()
@@ -110,13 +110,14 @@ class RadioListenerCoordinator:
                         )
                         self.alerts.appendleft(alert)
                         self._broadcast("NEW_ALERT", alert.model_dump())
+                        self._broadcast("NEW_CLUE", c.model_dump())
                         await self.pushover_notifier.send_alert(alert)
                         await self.discord_notifier.send_alert(alert)
                     else:
                         self.clues[c.clue_number] = c
             except Exception as e:
                 logger.error(f"Error in web watcher loop: {e}")
-            await asyncio.sleep(60.0)
+            await asyncio.sleep(30.0)
 
     async def _run_audio_pipeline(self):
         """Consumes PCM audio stream, runs VAD, STT, and detection."""
