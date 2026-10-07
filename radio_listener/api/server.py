@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import List, Dict, Any
@@ -55,6 +56,7 @@ async def shutdown_event():
 
 @app.get("/api/status")
 async def get_status():
+    seconds_since_audio = round(time.time() - coordinator.last_audio_at, 1)
     return {
         "status": "running" if coordinator.is_running else "stopped",
         "station": settings.STATION_NAME,
@@ -69,7 +71,9 @@ async def get_status():
         "whisper_loaded": coordinator.stt.model_loaded,
         "whisper_model": coordinator.stt.model_size,
         "whisper_error": coordinator.stt.load_error,
-        "audio_stream_active": coordinator.total_audio_frames_processed > 0
+        "audio_stream_active": coordinator.total_audio_frames_processed > 0 and seconds_since_audio < 60,
+        "seconds_since_audio": seconds_since_audio,
+        "audio_pipeline_crashes": coordinator.audio_pipeline_crashes,
     }
 
 class DiscordConfigPayload(BaseModel):

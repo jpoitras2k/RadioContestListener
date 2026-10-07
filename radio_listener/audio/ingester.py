@@ -106,16 +106,36 @@ class AudioStreamIngester:
             except Exception as e:
                 logger.error(f"Error in audio ingest: {e}")
             finally:
-                if self.process:
-                    try:
-                        self.process.terminate()
-                        await asyncio.wait_for(self.process.wait(), timeout=1.0)
-                    except Exception:
-                        self.process.kill()
-                    self.process = None
+                await self._stop_process()
 
             if self._running:
                 await asyncio.sleep(2.0)
+
+    async def _stop_process(self):
+        # terminate()/kill() raise ProcessLookupError once ffmpeg has already exited, which
+        # previously escaped this cleanup and silently ended the whole audio pipeline.
+        proc, self.process = self.process, None
+        if proc is None or proc.returncode is not None:
+            return
+        try:
+            proc.terminate()
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
+        except ProcessLookupError:
+            pass
+        except Exception:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+
+    def kill_current_process(self):
+        """Forces the current ffmpeg to exit so start() reconnects (used by the stall watchdog)."""
+        proc = self.process
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
 
     def stop(self):
         self._running = False

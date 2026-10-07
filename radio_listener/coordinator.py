@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 import wave
@@ -34,6 +35,8 @@ CLUE_CAPTURE_SEC = 90.0
 CLUE_TEXT_GRACE_SEC = 30.0
 # Repeated mentions within this window extend the same on-air clue instead of creating another.
 CLUE_MERGE_WINDOW_SEC = 15 * 60
+AUDIO_STALL_KICK_SEC = 90.0
+AUDIO_STALL_EXIT_SEC = 180.0
 
 class RadioListenerCoordinator:
     """
@@ -66,6 +69,8 @@ class RadioListenerCoordinator:
         self.total_audio_frames_processed = 0
         self.total_speech_segments = 0
         self.total_triggers_fired = 0
+        self.last_audio_at = time.time()
+        self.audio_pipeline_crashes = 0
 
         frames_per_sec = int(round(1.0 / settings.CHUNK_DURATION_SEC))
         self._audio_ring: deque[np.ndarray] = deque(maxlen=int(CLUE_PRE_ROLL_SEC * frames_per_sec))
@@ -95,7 +100,8 @@ class RadioListenerCoordinator:
             self._merge_web_clue(c)
             
         self._utterance_queue = asyncio.Queue(maxsize=8)
-        self._tasks.append(asyncio.create_task(self._run_audio_pipeline()))
+        self._tasks.append(asyncio.create_task(self._supervise_audio_pipeline()))
+        self._tasks.append(asyncio.create_task(self._run_audio_watchdog()))
         self._tasks.append(asyncio.create_task(self._run_transcriber()))
         self._tasks.append(asyncio.create_task(self._run_web_watcher()))
         self._tasks.append(asyncio.create_task(self._run_state_saver()))
@@ -183,12 +189,45 @@ class RadioListenerCoordinator:
                 logger.error(f"Error in web watcher loop: {e}")
             await asyncio.sleep(30.0)
 
+    async def _supervise_audio_pipeline(self):
+        while self.is_running:
+            try:
+                await self._run_audio_pipeline()
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.audio_pipeline_crashes += 1
+                logger.exception(f"Audio pipeline crashed ({e}); restarting in 5s.")
+                self.ingester.kill_current_process()
+            if self.is_running:
+                await asyncio.sleep(5.0)
+
+    async def _run_audio_watchdog(self):
+        """Last line of defence against a silent audio stall: reconnect, then restart the service."""
+        kicked = False
+        while self.is_running:
+            await asyncio.sleep(15.0)
+            if self.ingester.source == "mock":
+                continue
+            stalled = time.time() - self.last_audio_at
+            if stalled > AUDIO_STALL_EXIT_SEC:
+                logger.critical(f"No station audio for {stalled:.0f}s after reconnecting; exiting so systemd restarts the service.")
+                self.save_state()
+                os._exit(1)
+            if stalled > AUDIO_STALL_KICK_SEC and not kicked:
+                logger.warning(f"No station audio for {stalled:.0f}s; forcing stream reconnect.")
+                self.ingester.kill_current_process()
+                kicked = True
+            elif stalled <= AUDIO_STALL_KICK_SEC:
+                kicked = False
+
     async def _run_audio_pipeline(self):
         """Consumes PCM audio stream, runs VAD, STT, and detection."""
         async for frame in self.ingester.start():
             if not self.is_running:
                 break
             self.total_audio_frames_processed += 1
+            self.last_audio_at = time.time()
             self._audio_ring.append(frame)
             cap = self._clue_capture
             if cap and cap["recording"]:

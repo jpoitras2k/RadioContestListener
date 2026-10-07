@@ -859,6 +859,12 @@
         }
       } catch (e) {
         console.error("Error loading initial data:", e);
+        const pill = document.getElementById("system-status");
+        if (pill) {
+          pill.textContent = "SERVER OFFLINE";
+          pill.parentElement.style.color = "#f87171";
+          pill.parentElement.style.borderColor = "rgba(248,113,113,0.5)";
+        }
       }
     }
 
@@ -997,6 +1003,23 @@
       document.getElementById("metric-vad").textContent = status.total_speech_segments || 0;
       document.getElementById("metric-triggers").textContent = status.total_triggers_fired || 0;
       
+      const pill = document.getElementById("system-status");
+      if (pill) {
+        const wrap = pill.parentElement;
+        if (status.audio_stream_active) {
+          pill.textContent = "LISTENING LIVE";
+          wrap.style.color = "";
+          wrap.style.borderColor = "";
+          wrap.title = "Receiving station audio";
+        } else {
+          const s = Math.round(status.seconds_since_audio || 0);
+          pill.textContent = s >= 60 ? `NO AUDIO ${Math.floor(s / 60)}m` : "CONNECTING…";
+          wrap.style.color = "#f87171";
+          wrap.style.borderColor = "rgba(248,113,113,0.5)";
+          wrap.title = "The listener is not receiving station audio. It reconnects automatically; if this persists, check: journalctl -u zone-listener.service -n 50";
+        }
+      }
+
       const wMetric = document.getElementById("metric-whisper");
       if (wMetric) {
         if (status.whisper_loaded) {
