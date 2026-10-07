@@ -698,9 +698,14 @@
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title">
-            <span>⚡</span> Alert History (Pushover)
+            <span>⚡</span> Alert History
           </div>
-          <span class="counter-badge" id="alert-counter">0 Alerts</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button class="dismiss-banner-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="dismissCallInBanner()" title="Clear active call-in banner">
+              🔕 Reset Lines
+            </button>
+            <span class="counter-badge" id="alert-counter">0 Alerts</span>
+          </div>
         </div>
         <div class="alerts-list" id="alerts-container">
           <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 1rem;">
@@ -830,6 +835,9 @@
         renderGuesses(guesses);
         renderTranscripts(transcripts);
         updateStatus(status);
+        if (status.discord_enabled && !document.getElementById("discord-webhook-input").value) {
+          document.getElementById("discord-webhook-input").placeholder = "Connected via .env";
+        }
       } catch (e) {
         console.error("Error loading initial data:", e);
       }
@@ -889,6 +897,7 @@
     }
 
     async function dismissCallInBanner() {
+      // Mark active alert as dismissed in local session
       if (currentActiveCallInId) {
         dismissedAlertIds.add(currentActiveCallInId);
       }
@@ -902,6 +911,10 @@
         console.error("Error dismissing alerts on backend:", e);
       }
       setTimeout(loadInitialData, 300);
+    }
+
+    async function clearAllAlerts() {
+      dismissCallInBanner();
     }
 
     function renderGuesses(guesses) {
@@ -980,6 +993,9 @@
             }
             loadInitialData();
           } else if (msg.type === "ALERTS_DISMISSED") {
+            if (currentActiveCallInId) {
+              dismissedAlertIds.add(currentActiveCallInId);
+            }
             const banner = document.getElementById("active-callin-banner");
             if (banner) banner.style.display = "none";
             loadInitialData();
