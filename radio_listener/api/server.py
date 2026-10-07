@@ -8,7 +8,10 @@ from pydantic import BaseModel
 
 from radio_listener.config import settings
 from radio_listener.coordinator import RadioListenerCoordinator
-from radio_listener.models import ContestAlert, ContestClue, CallerGuess, TranscriptSegment
+from radio_listener.models import (
+    ContestAlert, ContestClue, CallerGuess, TranscriptSegment,
+    EventType, ActionType, Verdict
+)
 
 logger = logging.getLogger("radio_listener.api")
 
