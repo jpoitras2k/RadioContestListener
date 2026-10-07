@@ -34,8 +34,9 @@ class WhisperTranscriber:
     def _load_model(self):
         try:
             from faster_whisper import WhisperModel
-            import torch
-            dev = "cuda" if (self.device == "cuda" or (self.device == "auto" and torch.cuda.is_available())) else "cpu"
+            import ctranslate2
+            has_cuda = ctranslate2.get_cuda_device_count() > 0
+            dev = "cuda" if (self.device == "cuda" or (self.device == "auto" and has_cuda)) else "cpu"
             c_type = "float16" if dev == "cuda" else "int8"
             logger.info(f"Loading faster-whisper model '{self.model_size}' on {dev} ({c_type})...")
             # We initialize lazily or load small if on CPU

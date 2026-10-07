@@ -42,8 +42,8 @@ cd "$APP_DIR"
 # 6. Create Python virtual environment and install dependencies
 python3 -m venv .venv
 ./.venv/bin/pip install --upgrade pip
-./.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
-./.venv/bin/pip install -r requirements.txt
+./.venv/bin/pip uninstall -y torch 2>/dev/null || true
+./.venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # 7. Select model size according to available hardware
 # For 512MB-1GB droplets, base.en runs sub-second with high accuracy and <250MB memory footprint.
