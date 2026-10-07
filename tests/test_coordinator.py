@@ -30,3 +30,11 @@ async def test_coordinator_event_processing():
     assert alert3 is not None
     assert alert3.event_type == EventType.CALLER_GUESS
     assert len(coordinator.caller_guesses) >= 1
+
+    # 4. Test dismissing active call-in alerts
+    assert alert2.is_actionable_now is True
+    for a in coordinator.alerts:
+        if a.action_type == ActionType.PHONE_CALL:
+            a.is_actionable_now = False
+    assert alert2.is_actionable_now is False
+

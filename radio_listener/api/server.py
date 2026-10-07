@@ -97,6 +97,15 @@ async def get_clues():
 async def get_alerts():
     return list(coordinator.alerts)
 
+@app.post("/api/alerts/dismiss")
+async def dismiss_alerts():
+    # Mark all active phone call alerts as not actionable now
+    for alert in coordinator.alerts:
+        if alert.action_type == ActionType.PHONE_CALL:
+            alert.is_actionable_now = False
+    return {"success": True, "message": "Active call alerts dismissed"}
+
+
 @app.get("/api/guesses")
 async def get_guesses():
     return list(coordinator.caller_guesses)

@@ -208,7 +208,25 @@
       flex-direction: column;
       gap: 0.8rem;
       overflow-y: auto;
-      max-height: 480px;
+      max-height: 540px;
+    }
+
+    .clue-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .clue-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+    }
+
+    .clue-list::-webkit-scrollbar-thumb {
+      background: rgba(245, 158, 11, 0.3);
+      border-radius: 4px;
+    }
+
+    .clue-list::-webkit-scrollbar-thumb:hover {
+      background: rgba(245, 158, 11, 0.6);
     }
 
     .clue-card {
@@ -279,6 +297,34 @@
       align-items: center;
     }
 
+    .alert-header-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .dismiss-banner-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fca5a5;
+      font-size: 0.75rem;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: all 0.2s;
+    }
+
+    .dismiss-banner-btn:hover {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fff;
+    }
+
     .alert-title {
       font-size: 1.05rem;
       font-weight: 700;
@@ -303,6 +349,31 @@
     .dial-btn:hover {
       background: #dc2626;
       transform: translateY(-1px);
+    }
+
+    .dial-actions-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.4rem;
+    }
+
+    .dismiss-action-btn {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #d1d5db;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .dismiss-action-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
     }
 
     .alerts-list {
@@ -586,16 +657,24 @@
       <div id="active-callin-banner" style="display: none;" class="alert-banner">
         <div class="alert-header">
           <div class="alert-title">🚨 PHONE LINES OPEN: BE CALLER 13!</div>
-          <span style="font-size: 0.8rem; font-family: 'JetBrains Mono'; color: #fca5a5;">ACTIVE NOW</span>
+          <div class="alert-header-right">
+            <span style="font-size: 0.8rem; font-family: 'JetBrains Mono'; color: #fca5a5;">ACTIVE NOW</span>
+            <button class="dismiss-banner-btn" onclick="dismissCallInBanner()" title="Close banner">
+              ✕ Close
+            </button>
+          </div>
         </div>
         <p id="active-callin-summary" style="font-size: 0.95rem; color: #fee2e2;">
           Lines are open right now on The Zone for caller 13!
         </p>
-        <div style="margin-top: 0.4rem;">
+        <div class="dial-actions-row">
           <a href="tel:2504750913" class="dial-btn">
             <span>📞</span>
             <span>DIAL 250-475-0913 NOW</span>
           </a>
+          <button class="dismiss-action-btn" onclick="dismissCallInBanner()">
+            Lines Closed / Dismiss
+          </button>
         </div>
       </div>
 
@@ -724,6 +803,8 @@
   <script>
     const API_BASE = window.location.origin;
     let ws = null;
+    const dismissedAlertIds = new Set();
+    let currentActiveCallInId = null;
 
     async function loadInitialData() {
       try {
@@ -784,13 +865,40 @@
         </div>
       `).join('');
 
-      // Check if top alert is actionable call-in
-      const activeCallIn = alerts.find(a => a.is_actionable_now && a.action_type === 'PHONE_CALL');
+      // Check if top alert is actionable call-in (and within last 10 minutes)
+      const now = Date.now();
+      const activeCallIn = alerts.find(a => {
+        if (!a.is_actionable_now || a.action_type !== 'PHONE_CALL') return false;
+        if (dismissedAlertIds.has(a.id)) return false;
+        // Auto-expire call-in banners older than 10 minutes (600,000ms)
+        const alertAge = now - new Date(a.timestamp).getTime();
+        return alertAge < 600000;
+      });
+
       const banner = document.getElementById("active-callin-banner");
       if (activeCallIn) {
+        currentActiveCallInId = activeCallIn.id;
         banner.style.display = "flex";
         document.getElementById("active-callin-summary").textContent = activeCallIn.summary;
+      } else {
+        banner.style.display = "none";
       }
+    }
+
+    async function dismissCallInBanner() {
+      if (currentActiveCallInId) {
+        dismissedAlertIds.add(currentActiveCallInId);
+      }
+      const banner = document.getElementById("active-callin-banner");
+      if (banner) {
+        banner.style.display = "none";
+      }
+      try {
+        await fetch(`${API_BASE}/api/alerts/dismiss`, { method: 'POST' });
+      } catch (e) {
+        console.error("Error dismissing alerts on backend:", e);
+      }
+      setTimeout(loadInitialData, 300);
     }
 
     function renderGuesses(guesses) {
@@ -863,6 +971,10 @@
             `;
             container.prepend(div);
           } else if (msg.type === "NEW_ALERT") {
+            // If the incoming alert is a call-in, allow banner to show even if previous was dismissed
+            if (msg.data && msg.data.id && msg.data.action_type === 'PHONE_CALL') {
+              dismissedAlertIds.delete(msg.data.id);
+            }
             loadInitialData();
           } else if (msg.type === "NEW_CLUE") {
             loadInitialData();
