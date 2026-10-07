@@ -34,6 +34,7 @@ mkdir -p "$APP_DIR"
 if [ -f "./main.py" ]; then
     cp -r ./* "$APP_DIR/"
     cp -r ./static "$APP_DIR/" 2>/dev/null || true
+    cp -r ./radio_listener "$APP_DIR/" 2>/dev/null || true
 fi
 
 cd "$APP_DIR"
