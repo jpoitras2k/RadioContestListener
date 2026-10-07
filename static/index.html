@@ -530,6 +530,14 @@
         <div class="brand-subtitle">CJZN-FM Victoria • Modern Rock Real-Time Radar</div>
       </div>
     </div>
+    <!-- Header Audio Player -->
+    <div style="display: flex; align-items: center; gap: 0.8rem; background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); padding: 0.35rem 0.8rem; border-radius: 8px;">
+      <span style="font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; text-transform: uppercase;">Station Audio:</span>
+      <audio id="station-player" controls preload="none" style="height: 28px; width: 220px;" src="https://redirect.jpbgdigital.com/CJZN.m3u8?player_type=web&device_id=dashboard-player&member_id=">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+
     <div class="header-actions">
       <a href="tel:2504750913" class="phone-badge">
         <span>📞</span>

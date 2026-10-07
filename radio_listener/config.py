@@ -12,7 +12,7 @@ class Settings(BaseModel):
     STATION_TOLLFREE_PHONE: str = "1-888-414-0913"
     STATION_STREAM_URL: str = os.getenv(
         "STATION_STREAM_URL", 
-        "https://redirect.jpbgdigital.com/CJZN.m3u8"
+        "https://redirect.jpbgdigital.com/CJZN.m3u8?player_type=web&device_id=listener-daemon&member_id="
     )
     CONTEST_URL: str = os.getenv(
         "CONTEST_URL", 
