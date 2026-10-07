@@ -136,7 +136,6 @@ class OllamaReasoner:
                 event_type=EventType.IRRELEVANT,
                 summary="Teaser for upcoming contest announcement."
             )
-
         # Caller guess (check before general "the secret" clue pattern)
         if any(g in t for g in ["what's your guess", "is it the", "my guess is", "incorrect", "not the secret", "line 2", "line 1"]):
             guess_match = re.search(r"is it the\s+([^.!?]+)", t, re.IGNORECASE)
@@ -162,6 +161,32 @@ class OllamaReasoner:
                 dial_url=f"tel:{settings.STATION_STUDIO_PHONE_CLEAN}",
                 confidence=0.92,
                 summary="Phone lines open for live callers on The Zone!"
+            )
+
+        # Talk *about* clues (waiting for one, recapping an earlier one, pointing at the website)
+        # is common and is not a clue being read. Only the latest lines are checked so a real
+        # reading shortly after the DJ says "here it comes" is still caught.
+        latest_t = " ".join(re.split(r"(?<=[.!?])\s+", transcript.strip())[-3:]).lower()
+        clue_chatter = [
+            "awaiting", "any moment", "waiting for", "sent to me",
+            "this morning with", "earlier today", "earlier this morning", "yesterday",
+            "on our website", "on the website", "reddit", "how many clues",
+            "will be revealing", "be revealing", "just after", "o'clock", "in about",
+            "there was a new clue", "previous clue", "last clue",
+        ]
+        reading_cue = re.search(
+            r"(here(?:'s| is) (?:the|your|today'?s|our)? ?(?:new |next |latest )?clue"
+            r"|clue (?:number|#)\s*\w+ (?:is|goes)|the clue is|ready for (?:the|your) clue)",
+            latest_t,
+        )
+        spoken_number = re.search(
+            r"clue\s*(?:number|#)\s*(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)", latest_t
+        )
+        if not reading_cue and not spoken_number and any(p in latest_t for p in clue_chatter):
+            return AnalysisResult(
+                is_actionable_now=False,
+                event_type=EventType.IRRELEVANT,
+                summary="DJ talking about clues, not reading one."
             )
 
         # Clue detection

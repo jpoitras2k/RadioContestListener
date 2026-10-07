@@ -9,7 +9,7 @@ import httpx
 from pydantic import BaseModel
 
 from radio_listener.config import settings
-from radio_listener.coordinator import RadioListenerCoordinator
+from radio_listener.coordinator import RadioListenerCoordinator, CLIPS_DIR
 from radio_listener.models import (
     ContestAlert, ContestClue, CallerGuess, TranscriptSegment,
     EventType, ActionType, Verdict
@@ -126,10 +126,14 @@ async def scrape_now():
     clues = await coordinator.scraper.fetch_current_clues()
     new_found = 0
     for c in clues:
-        if c.clue_number not in coordinator.clues:
+        existing = coordinator.clues.get(c.clue_number)
+        is_new = existing is None or existing.source == "radio_stt"
+        if existing is not None:
+            c.audio_url = existing.audio_url
+        coordinator.clues[c.clue_number] = c
+        if is_new:
             new_found += 1
             coordinator._broadcast("NEW_CLUE", c.model_dump())
-        coordinator.clues[c.clue_number] = c
     scraper = coordinator.scraper
     return {
         "success": scraper.last_error is None,
@@ -144,6 +148,9 @@ async def scrape_now():
 async def delete_clue(clue_number: int):
     if clue_number in coordinator.clues:
         del coordinator.clues[clue_number]
+        cap = coordinator._clue_capture
+        if cap and cap["number"] == clue_number:
+            coordinator._clue_capture = None
         coordinator._broadcast("CLUES_UPDATED", {})
         return {"success": True, "message": f"Clue #{clue_number} removed"}
     return {"success": False, "message": "Clue not found"}
@@ -260,6 +267,9 @@ INDEX_HTML = STATIC_DIR / "index.html"
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+CLIPS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/clips", StaticFiles(directory=str(CLIPS_DIR)), name="clips")
 
 @app.get("/")
 async def root():

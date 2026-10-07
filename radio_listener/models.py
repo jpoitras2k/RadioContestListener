@@ -29,8 +29,9 @@ class ContestClue(BaseModel):
     clue_number: int
     text: str
     discovered_at: datetime = Field(default_factory=utc_now)
-    source: str = "web_scraper" # "web_scraper" | "radio_stt"
-    status: str = "active"
+    source: str = "web_scraper" # "web_scraper" | "radio_stt" | "manual_entry"
+    status: str = "active" # "active" | "unconfirmed" (heard on air, not yet on the website)
+    audio_url: Optional[str] = None
 
 class CallerGuess(BaseModel):
     caller_id: Optional[str] = None

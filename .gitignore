@@ -6,3 +6,4 @@ env/
 venv/
 *.log
 .pytest_cache/
+clips/
