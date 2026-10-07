@@ -44,14 +44,14 @@ class AudioStreamIngester:
                 "-g", "32"
             ]
         elif self.source == "stream":
-            # Resilient FFmpeg pipeline with auto-reconnect and bandpass audio filter
+            # -reconnect_at_eof/-reconnect_streamed must not be used here: with HLS they make
+            # ffmpeg re-read the master playlist endlessly and it never finds an audio stream.
+            # Reconnects are handled by the restart loop in start().
             return [
                 "ffmpeg",
                 "-nostdin",
-                "-reconnect", "1",
-                "-reconnect_at_eof", "1",
-                "-reconnect_streamed", "1",
-                "-reconnect_delay_max", "2",
+                "-loglevel", "error",
+                "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "-i", self.stream_url,
                 "-af", "highpass=f=200,lowpass=f=3500,volume=1.2",
                 "-f", "s16le",
@@ -83,12 +83,14 @@ class AudioStreamIngester:
                 self.process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.DEVNULL
+                    stderr=None
                 )
                 logger.info(f"Subprocess spawned: {' '.join(cmd)}")
                 
                 while self._running and self.process.returncode is None:
-                    raw_bytes = await self.process.stdout.readexactly(self.frame_bytes)
+                    raw_bytes = await asyncio.wait_for(
+                        self.process.stdout.readexactly(self.frame_bytes), timeout=30.0
+                    )
                     if not raw_bytes:
                         break
                     
@@ -99,6 +101,8 @@ class AudioStreamIngester:
                     
             except asyncio.IncompleteReadError:
                 logger.warning("Stream ended or interrupted. Reconnecting in 2 seconds...")
+            except asyncio.TimeoutError:
+                logger.warning("No audio received for 30s. Restarting stream...")
             except Exception as e:
                 logger.error(f"Error in audio ingest: {e}")
             finally:

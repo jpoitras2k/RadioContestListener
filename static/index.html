@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     :root {
       --bg: #0b0f19;
@@ -604,7 +605,7 @@
     <!-- Header Audio Player -->
     <div style="display: flex; align-items: center; gap: 0.8rem; background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); padding: 0.35rem 0.8rem; border-radius: 8px;">
       <span style="font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; text-transform: uppercase;">Station Audio:</span>
-      <audio id="station-player" controls preload="none" style="height: 28px; width: 220px;" src="https://redirect.jpbgdigital.com/CJZN.m3u8?player_type=web&device_id=dashboard-player&member_id=">
+      <audio id="station-player" controls preload="none" style="height: 28px; width: 220px;">
         Your browser does not support the audio element.
       </audio>
     </div>
@@ -810,12 +811,12 @@
             <span class="metric-val" id="metric-vad">0</span>
           </div>
           <div class="metric-card">
-            <span class="metric-label">Regex Triggers</span>
-            <span class="metric-val" id="metric-triggers">0</span>
+            <span class="metric-label">STT Whisper</span>
+            <span class="metric-val" id="metric-whisper" style="font-size: 0.85rem;">CHECKING</span>
           </div>
           <div class="metric-card">
-            <span class="metric-label">Latency est.</span>
-            <span class="metric-val" style="color: #10b981;">~1.2s</span>
+            <span class="metric-label">Regex Triggers</span>
+            <span class="metric-val" id="metric-triggers">0</span>
           </div>
         </div>
       </div>
@@ -957,7 +958,14 @@
     function renderTranscripts(transcripts) {
       const container = document.getElementById("transcript-container");
       document.getElementById("transcript-count").textContent = `${transcripts.length} Chunks`;
-      if (!transcripts.length) return;
+      if (!transcripts.length) {
+        container.innerHTML = `
+          <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 2rem;">
+            Listening for on-air speech...
+          </div>
+        `;
+        return;
+      }
 
       container.innerHTML = transcripts.map(t => `
         <div class="transcript-line ${t.is_trigger ? 'trigger' : ''}">
@@ -970,6 +978,19 @@
     function updateStatus(status) {
       document.getElementById("metric-vad").textContent = status.total_speech_segments || 0;
       document.getElementById("metric-triggers").textContent = status.total_triggers_fired || 0;
+      
+      const wMetric = document.getElementById("metric-whisper");
+      if (wMetric) {
+        if (status.whisper_loaded) {
+          wMetric.textContent = status.whisper_model || "ACTIVE";
+          wMetric.style.color = "#10b981";
+        } else {
+          wMetric.textContent = "OFFLINE";
+          wMetric.style.color = "#f87171";
+          wMetric.title = status.whisper_error || "faster-whisper not installed";
+        }
+      }
+
       const dBadge = document.getElementById("discord-status");
       if (status.discord_enabled) {
         dBadge.textContent = "CONNECTED";
@@ -1088,6 +1109,46 @@
       loadInitialData();
     }
 
+    function setupStationAudio() {
+      const audio = document.getElementById("station-player");
+      const streamUrl = `${API_BASE}/api/stream.m3u8`;
+
+      if (Hls && Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 30
+        });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(audio);
+        hls.on(Hls.Events.ERROR, function (event, data) {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.warn("HLS network error, attempting recovery...", data);
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.warn("HLS media error, recovering...", data);
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                // Direct fallback
+                audio.src = "https://stream.jpbgdigital.com/CJZN.m3u8?device_id=dashboard-player&player_type=web";
+                break;
+            }
+          }
+        });
+      } else if (audio.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native HLS support (Safari / iOS)
+        audio.src = streamUrl;
+      } else {
+        audio.src = "https://stream.jpbgdigital.com/CJZN.m3u8?device_id=dashboard-player&player_type=web";
+      }
+    }
+
+    setupStationAudio();
     loadInitialData();
     connectWebSocket();
     setInterval(loadInitialData, 10000);

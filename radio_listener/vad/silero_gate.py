@@ -45,7 +45,7 @@ class VoiceActivityDetector:
     def process_frame(self, frame: np.ndarray) -> Optional[np.ndarray]:
         """
         Process a 50ms frame. Returns concatenated speech array if an utterance 
-        just completed; otherwise returns None.
+        just completed or max duration reached; otherwise returns None.
         """
         prob = self._calculate_speech_probability(frame)
         
@@ -62,13 +62,15 @@ class VoiceActivityDetector:
             self.speech_buffer.append(frame)
             
             # Check for speech completion:
-            # 1. DJ stopped speaking for min_silence_ms
-            # 2. Maximum chunk ceiling reached (e.g. 8s continuous speech)
+            # 1. DJ paused/breathed for min_silence_ms
+            # 2. Maximum chunk ceiling reached (e.g. 6-8s continuous speech)
             if self.consecutive_silence >= self.min_silence_frames or len(self.speech_buffer) >= self.max_frames:
                 utterance = np.concatenate(self.speech_buffer)
                 self.speech_buffer = []
-                self.is_speaking = False
-                self.consecutive_silence = 0
+                # If we cut at max_frames while sound continues, keep speaking flag so next chunk accumulates
+                if self.consecutive_silence >= self.min_silence_frames:
+                    self.is_speaking = False
+                    self.consecutive_silence = 0
                 return utterance
 
         return None

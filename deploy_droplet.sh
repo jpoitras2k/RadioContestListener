@@ -39,9 +39,10 @@ fi
 
 cd "$APP_DIR"
 
-# 6. Create Python virtual environment
+# 6. Create Python virtual environment and install dependencies
 python3 -m venv .venv
 ./.venv/bin/pip install --upgrade pip
+./.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
 ./.venv/bin/pip install -r requirements.txt
 
 # 7. Select model size according to available hardware
@@ -56,6 +57,7 @@ cat << EOF > "$APP_DIR/.env"
 PORT=4173
 HOST=0.0.0.0
 AUDIO_SOURCE=stream
+STATION_STREAM_URL=https://stream.jpbgdigital.com/CJZN.m3u8?device_id=listener-daemon&player_type=web
 DISCORD_ENABLED=true
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/REDACTED
 PUSHOVER_ENABLED=false

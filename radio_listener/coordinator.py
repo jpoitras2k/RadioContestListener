@@ -77,7 +77,9 @@ class RadioListenerCoordinator:
         for c in initial_clues:
             self.clues[c.clue_number] = c
             
+        self._utterance_queue = asyncio.Queue(maxsize=8)
         self._tasks.append(asyncio.create_task(self._run_audio_pipeline()))
+        self._tasks.append(asyncio.create_task(self._run_transcriber()))
         self._tasks.append(asyncio.create_task(self._run_web_watcher()))
 
     async def stop(self):
@@ -130,9 +132,24 @@ class RadioListenerCoordinator:
             utterance = self.vad.process_frame(frame)
             if utterance is not None:
                 self.total_speech_segments += 1
-                text = self.stt.transcribe(utterance)
-                if text:
+                # If Whisper can't keep up with the live stream, drop the oldest chunk
+                # rather than letting audio reading fall behind.
+                if self._utterance_queue.full():
+                    self._utterance_queue.get_nowait()
+                    logger.warning("Transcriber falling behind; dropped oldest speech chunk.")
+                self._utterance_queue.put_nowait(utterance)
+
+    async def _run_transcriber(self):
+        """Runs Whisper off the event loop so audio ingest and the API stay responsive."""
+        while self.is_running:
+            utterance = await self._utterance_queue.get()
+            try:
+                text = await asyncio.to_thread(self.stt.transcribe, utterance)
+                if text and text.strip():
+                    logger.info(f"Speech transcribed: '{text}'")
                     await self.process_transcript_text(text)
+            except Exception as e:
+                logger.error(f"Error transcribing speech chunk: {e}")
 
     async def process_transcript_text(self, text: str, custom_timestamp: Optional[datetime] = None) -> Optional[ContestAlert]:
         """

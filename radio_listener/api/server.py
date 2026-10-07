@@ -2,9 +2,10 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import List, Dict, Any
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+import httpx
 from pydantic import BaseModel
 
 from radio_listener.config import settings
@@ -63,7 +64,11 @@ async def get_status():
         "total_speech_segments": coordinator.total_speech_segments,
         "total_triggers_fired": coordinator.total_triggers_fired,
         "pushover_enabled": settings.PUSHOVER_ENABLED,
-        "discord_enabled": settings.DISCORD_ENABLED and bool(coordinator.discord_notifier.webhook_url)
+        "discord_enabled": settings.DISCORD_ENABLED and bool(coordinator.discord_notifier.webhook_url),
+        "whisper_loaded": coordinator.stt.model_loaded,
+        "whisper_model": coordinator.stt.model_size,
+        "whisper_error": coordinator.stt.load_error,
+        "audio_stream_active": coordinator.total_audio_frames_processed > 0
     }
 
 class DiscordConfigPayload(BaseModel):
@@ -218,6 +223,27 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         if websocket in connected_websockets:
             connected_websockets.remove(websocket)
+
+@app.get("/api/stream.m3u8")
+async def stream_m3u8_proxy():
+    """
+    Proxies the live master m3u8 playlist to prevent CORS and redirect issues in browsers.
+    """
+    url = "https://stream.jpbgdigital.com/CJZN.m3u8?device_id=dashboard-player&player_type=web"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        try:
+            resp = await client.get(url, headers=headers)
+            return Response(
+                content=resp.text,
+                media_type="application/vnd.apple.mpegurl",
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Cache-Control": "no-cache, no-store, must-revalidate"
+                }
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Failed to fetch upstream stream: {e}")
 
 # Serve dashboard
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

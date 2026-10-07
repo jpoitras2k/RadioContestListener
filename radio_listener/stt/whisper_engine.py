@@ -27,6 +27,8 @@ class WhisperTranscriber:
         self.device = device
         self.compute_type = compute_type
         self.model = None
+        self.model_loaded = False
+        self.load_error = None
         self._load_model()
 
     def _load_model(self):
@@ -38,8 +40,10 @@ class WhisperTranscriber:
             logger.info(f"Loading faster-whisper model '{self.model_size}' on {dev} ({c_type})...")
             # We initialize lazily or load small if on CPU
             self.model = WhisperModel(self.model_size, device=dev, compute_type=c_type)
+            self.model_loaded = True
             logger.info("faster-whisper loaded successfully.")
         except Exception as e:
+            self.load_error = str(e)
             logger.warning(f"Could not load faster-whisper ({e}). Transcriber running in simulation/mock fallback.")
             self.model = None
 
@@ -56,7 +60,8 @@ class WhisperTranscriber:
                 audio_data,
                 initial_prompt=ZONE_INITIAL_PROMPT,
                 condition_on_previous_text=False,
-                no_speech_threshold=0.6,
+                no_speech_threshold=0.8,
+                vad_filter=True,
                 language="en"
             )
             text = " ".join([seg.text.strip() for seg in segments if seg.text.strip()])
