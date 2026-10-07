@@ -976,6 +976,10 @@
               dismissedAlertIds.delete(msg.data.id);
             }
             loadInitialData();
+          } else if (msg.type === "ALERTS_DISMISSED") {
+            const banner = document.getElementById("active-callin-banner");
+            if (banner) banner.style.display = "none";
+            loadInitialData();
           } else if (msg.type === "NEW_CLUE") {
             loadInitialData();
           } else if (msg.type === "NEW_GUESS") {

@@ -103,7 +103,9 @@ async def dismiss_alerts():
     for alert in coordinator.alerts:
         if alert.action_type == ActionType.PHONE_CALL:
             alert.is_actionable_now = False
+    coordinator._broadcast("ALERTS_DISMISSED", {})
     return {"success": True, "message": "Active call alerts dismissed"}
+
 
 
 @app.get("/api/guesses")
