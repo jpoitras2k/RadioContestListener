@@ -46,6 +46,10 @@ class Settings(BaseModel):
     PUSHOVER_ENABLED: bool = os.getenv("PUSHOVER_ENABLED", "false").lower() == "true"
     PUSHOVER_APP_TOKEN: str = os.getenv("PUSHOVER_APP_TOKEN", "")
     PUSHOVER_USER_KEY: str = os.getenv("PUSHOVER_USER_KEY", "")
+
+    # Discord settings
+    DISCORD_ENABLED: bool = os.getenv("DISCORD_ENABLED", "true").lower() == "true"
+    DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
     
     # Web dashboard & API
     PORT: int = int(os.getenv("PORT", "4173"))

@@ -58,8 +58,32 @@ async def get_status():
         "total_audio_frames": coordinator.total_audio_frames_processed,
         "total_speech_segments": coordinator.total_speech_segments,
         "total_triggers_fired": coordinator.total_triggers_fired,
-        "pushover_enabled": settings.PUSHOVER_ENABLED
+        "pushover_enabled": settings.PUSHOVER_ENABLED,
+        "discord_enabled": settings.DISCORD_ENABLED and bool(coordinator.discord_notifier.webhook_url)
     }
+
+class DiscordConfigPayload(BaseModel):
+    webhook_url: str
+
+@app.post("/api/config/discord")
+async def config_discord(payload: DiscordConfigPayload):
+    coordinator.discord_notifier.webhook_url = payload.webhook_url.strip()
+    coordinator.discord_notifier.enabled = True
+    settings.DISCORD_WEBHOOK_URL = payload.webhook_url.strip()
+    settings.DISCORD_ENABLED = True
+    
+    # Send a verification / welcome alert to the channel
+    test_alert = ContestAlert(
+        id="test-connection",
+        event_type=EventType.IRRELEVANT,
+        action_type=ActionType.NONE,
+        title="✅ Discord Webhook Connected Successfully!",
+        summary="The Zone @ 91-3 Contest Radar is now connected to this channel. You will receive real-time alerts for live caller cues, new clues for 'The Secret', and ruled-out caller guesses here.",
+        is_actionable_now=False,
+        phone_number=settings.STATION_STUDIO_PHONE
+    )
+    success = await coordinator.discord_notifier.send_alert(test_alert)
+    return {"success": success, "message": "Discord webhook updated and test message sent."}
 
 @app.get("/api/clues")
 async def get_clues():

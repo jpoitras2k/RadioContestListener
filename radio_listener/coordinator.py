@@ -18,6 +18,7 @@ from radio_listener.stt.whisper_engine import WhisperTranscriber
 from radio_listener.detector.regex_gate import FastRegexGate
 from radio_listener.detector.ollama_client import OllamaReasoner
 from radio_listener.notifier.pushover import PushoverNotifier
+from radio_listener.notifier.discord import DiscordNotifier
 from radio_listener.scraper.web_watcher import ContestWebScraper
 
 logger = logging.getLogger("radio_listener.coordinator")
@@ -35,7 +36,8 @@ class RadioListenerCoordinator:
         self.stt = WhisperTranscriber()
         self.regex_gate = FastRegexGate()
         self.reasoner = OllamaReasoner()
-        self.notifier = PushoverNotifier()
+        self.pushover_notifier = PushoverNotifier()
+        self.discord_notifier = DiscordNotifier()
         self.scraper = ContestWebScraper()
         
         # State stores
@@ -108,7 +110,8 @@ class RadioListenerCoordinator:
                         )
                         self.alerts.appendleft(alert)
                         self._broadcast("NEW_ALERT", alert.model_dump())
-                        await self.notifier.send_alert(alert)
+                        await self.pushover_notifier.send_alert(alert)
+                        await self.discord_notifier.send_alert(alert)
                     else:
                         self.clues[c.clue_number] = c
             except Exception as e:
@@ -227,6 +230,7 @@ class RadioListenerCoordinator:
 
         self._broadcast("NEW_ALERT", alert.model_dump())
 
-        # Dispatch immediate notification
-        await self.notifier.send_alert(alert)
+        # Dispatch immediate notifications (Pushover & Discord)
+        await self.pushover_notifier.send_alert(alert)
+        await self.discord_notifier.send_alert(alert)
         return alert

@@ -675,6 +675,23 @@
         </div>
       </div>
 
+      <!-- Discord Webhook Settings Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span>💬</span> Discord Webhook Alerting
+          </div>
+          <span class="counter-badge" id="discord-status">Not Set</span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; line-height: 1.4;">
+          Paste your Discord channel webhook URL to receive instant alerts:
+        </div>
+        <div class="custom-input-row">
+          <input type="text" id="discord-webhook-input" class="custom-input" placeholder="https://discord.com/api/webhooks/..." />
+          <button class="sim-btn" onclick="saveDiscordWebhook()">Save</button>
+        </div>
+      </div>
+
       <!-- Engine Performance Metrics -->
       <div class="panel">
         <div class="panel-header">
@@ -805,6 +822,28 @@
     function updateStatus(status) {
       document.getElementById("metric-vad").textContent = status.total_speech_segments || 0;
       document.getElementById("metric-triggers").textContent = status.total_triggers_fired || 0;
+      const dBadge = document.getElementById("discord-status");
+      if (status.discord_enabled) {
+        dBadge.textContent = "CONNECTED";
+        dBadge.style.color = "#10b981";
+      } else {
+        dBadge.textContent = "NOT SET";
+        dBadge.style.color = "var(--text-muted)";
+      }
+    }
+
+    async function saveDiscordWebhook() {
+      const input = document.getElementById("discord-webhook-input");
+      const url = input.value.trim();
+      if (!url) return;
+      const res = await fetch(`${API_BASE}/api/config/discord`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhook_url: url })
+      });
+      const data = await res.json();
+      alert(data.message || "Webhook saved!");
+      loadInitialData();
     }
 
     function connectWebSocket() {
