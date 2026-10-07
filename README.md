@@ -114,10 +114,11 @@ To run the listener 24/7 in the cloud:
    ```bash
    ssh root@YOUR_DROPLET_IP
    ```
-3. Run the automated setup script directly:
+3. Clone and run the automated setup script:
    ```bash
-   curl -sSL https://raw.githubusercontent.com/.../deploy_droplet.sh | bash
-   # Or clone this repository onto the droplet and run:
+   git clone https://github.com/jpoitras2k/RadioContestListener.git
+   cd RadioContestListener
+   chmod +x deploy_droplet.sh
    ./deploy_droplet.sh
    ```
 4. The script automatically installs FFmpeg, creates the Python environment, configures your Discord webhook, and installs a persistent **`systemd` service** (`zone-listener.service`) that restarts automatically on reboots or stream hiccups.
