@@ -33,6 +33,7 @@ mkdir -p "$APP_DIR"
 # 5. Copy repository files into app directory if running from cloned folder
 if [ -f "./main.py" ]; then
     cp -r ./* "$APP_DIR/"
+    cp -r ./static "$APP_DIR/" 2>/dev/null || true
 fi
 
 cd "$APP_DIR"
@@ -61,7 +62,7 @@ WHISPER_MODEL_SIZE=${MODEL_SIZE}
 WHISPER_DEVICE=cpu
 EOF
 
-# 7. Create systemd daemon service
+# 9. Create systemd daemon service
 cat << 'EOF' > /etc/systemd/system/zone-listener.service
 [Unit]
 Description=The Zone 91-3 Radio Contest Listener & Radar
@@ -71,6 +72,7 @@ After=network.target sound.target
 Type=simple
 User=root
 WorkingDirectory=/opt/zone-radio-listener
+Environment=PYTHONPATH=/opt/zone-radio-listener
 EnvironmentFile=/opt/zone-radio-listener/.env
 ExecStart=/opt/zone-radio-listener/.venv/bin/python3 /opt/zone-radio-listener/main.py
 Restart=always

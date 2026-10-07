@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pathlib import Path
 from typing import List, Dict, Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -164,8 +165,15 @@ async def websocket_endpoint(websocket: WebSocket):
             connected_websockets.remove(websocket)
 
 # Serve dashboard
-app.mount("/static", StaticFiles(directory="/workspace/static"), name="static")
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+STATIC_DIR = BASE_DIR / "static"
+INDEX_HTML = STATIC_DIR / "index.html"
+
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/")
 async def root():
-    return FileResponse("/workspace/static/index.html")
+    if INDEX_HTML.exists():
+        return FileResponse(str(INDEX_HTML))
+    return {"message": "The Zone @ 91-3 Radio Contest Listener API running"}
