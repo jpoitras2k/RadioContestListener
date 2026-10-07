@@ -130,7 +130,15 @@ async def scrape_now():
             new_found += 1
             coordinator._broadcast("NEW_CLUE", c.model_dump())
         coordinator.clues[c.clue_number] = c
-    return {"message": "Scraped successfully", "clues_count": len(coordinator.clues), "new_clues": new_found}
+    scraper = coordinator.scraper
+    return {
+        "success": scraper.last_error is None,
+        "error": scraper.last_error,
+        "clues_on_page": len(clues),
+        "clues_count": len(coordinator.clues),
+        "new_clues": new_found,
+        "last_success_at": scraper.last_success_at.isoformat() if scraper.last_success_at else None,
+    }
 
 @app.delete("/api/clues/{clue_number}")
 async def delete_clue(clue_number: int):

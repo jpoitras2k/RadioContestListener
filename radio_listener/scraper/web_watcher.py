@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from datetime import datetime, timezone
 from typing import List, Optional
 import httpx
 from bs4 import BeautifulSoup
@@ -20,6 +21,15 @@ class ContestWebScraper:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         })
         self.known_clues: dict[int, str] = {}
+        self.last_error: Optional[str] = None
+        self.last_success_at: Optional[datetime] = None
+
+    def _fail(self, message: str) -> List[ContestClue]:
+        # Return nothing rather than stale data so a broken scrape is visible;
+        # callers keep the clues they already have.
+        self.last_error = message
+        logger.warning(f"Contest page scrape failed: {message}")
+        return []
 
     async def fetch_current_clues(self) -> List[ContestClue]:
         """
@@ -28,8 +38,7 @@ class ContestWebScraper:
         try:
             resp = await self.client.get(self.url)
             if resp.status_code != 200:
-                logger.warning(f"Failed to fetch {self.url}, status: {resp.status_code}")
-                return self._get_cached_clues()
+                return self._fail(f"HTTP {resp.status_code} from {self.url}")
 
             soup = BeautifulSoup(resp.text, "html.parser")
             clues: List[ContestClue] = []
@@ -56,27 +65,12 @@ class ContestWebScraper:
                                 source="web_scraper"
                             ))
 
-            if clues:
-                return sorted(clues, key=lambda c: c.clue_number)
+            if not clues:
+                return self._fail("Page loaded but no clue cards were found (site layout may have changed)")
 
-            return self._get_cached_clues()
+            self.last_error = None
+            self.last_success_at = datetime.now(timezone.utc)
+            return sorted(clues, key=lambda c: c.clue_number)
 
         except Exception as e:
-            logger.error(f"Error scraping contest page: {e}")
-            return self._get_cached_clues()
-
-    def _get_cached_clues(self) -> List[ContestClue]:
-        # Seeded verified clues from the live /shhhhhh/ page
-        seed_data = [
-            (1, "I’m not in Rome. I’m not in Perth. But you should know, I’m on planet Earth."),
-            (2, "The secret resides where an election was called. My oh my…that premier is tall."),
-            (3, "Hickory Dickory Dock. The Secret..is on this giant rock."),
-            (4, "I’m protected from sun and protected by waves, but you won’t find me by searching in caves."),
-            (5, "If you’re not in the water, you might be getting hotter."),
-            (6, "I am in one of 13 places. Where every council has different faces.")
-        ]
-        res = []
-        for num, txt in seed_data:
-            self.known_clues[num] = txt
-            res.append(ContestClue(clue_number=num, text=txt, source="web_scraper"))
-        return res
+            return self._fail(f"{type(e).__name__}: {e}")

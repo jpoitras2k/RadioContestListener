@@ -631,7 +631,7 @@
             <span>🕵️</span> "The Secret" Clues (/shhhhhh/)
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button class="dismiss-banner-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="scrapeCluesNow()" title="Check thezone.fm/shhhhhh/ for newly posted clues">
+            <button class="dismiss-banner-btn" style="padding: 0.15rem 0.5rem; font-size: 0.7rem;" onclick="scrapeCluesNow(this)" title="Check thezone.fm/shhhhhh/ for newly posted clues">
               🔄 Sync
             </button>
             <span class="counter-badge" id="clue-counter">0 Clues</span>
@@ -750,7 +750,7 @@
             <button class="sim-btn" onclick="simulateScenario('banter')">
               🎸 Regular DJ Banter
             </button>
-            <button class="sim-btn" onclick="scrapeCluesNow()">
+            <button class="sim-btn" onclick="scrapeCluesNow(this)">
               🔄 Scrape /shhhhhh/
             </button>
             <button class="sim-btn" style="border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;" onclick="dismissCallInBanner()">
@@ -1077,10 +1077,34 @@
       setTimeout(loadInitialData, 300);
     }
 
-    async function scrapeCluesNow() {
-      const res = await fetch(`${API_BASE}/api/scrape_now`, { method: 'POST' });
-      const data = await res.json();
+    async function scrapeCluesNow(btn) {
+      const original = btn ? btn.innerHTML : null;
+      if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
+      let label, tip;
+      try {
+        const res = await fetch(`${API_BASE}/api/scrape_now`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          label = `✓ ${data.clues_on_page} clues` + (data.new_clues ? `, ${data.new_clues} new` : "");
+          tip = "Read live from thezone.fm/shhhhhh/";
+        } else {
+          label = "⚠ Sync failed";
+          tip = data.error || "Unknown error";
+        }
+      } catch (e) {
+        label = "⚠ Sync failed";
+        tip = "Could not reach the listener server";
+      }
       loadInitialData();
+      if (btn) {
+        btn.textContent = label;
+        btn.title = tip;
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.disabled = false;
+          btn.title = "Check thezone.fm/shhhhhh/ for newly posted clues";
+        }, 4000);
+      }
     }
 
     async function addManualClue() {
