@@ -8,7 +8,7 @@ logger = logging.getLogger("radio_listener.stt")
 # Station-specific vocabulary biasing to minimize WER on numbers, DJ names, and contest terms
 ZONE_INITIAL_PROMPT = (
     "The Zone @ 91-3, CJZN, Victoria, Pol, Jenny, Jason Lamb, Kirsten, "
-    "The Secret, shhhhhh, secret clue, clue number, riddle, "
+    "The Secret, shhhhhh, secret clue, clue number, riddle, GI Snagglepuss, "
     "Vancouver Island, premier, David Eby, Victoria, 250-475-0913, 1-888-414-0913."
 )
 
@@ -70,3 +70,66 @@ class WhisperTranscriber:
         except Exception as e:
             logger.error(f"Whisper transcription error: {e}")
             return ""
+
+    def transcribe_clip(self, audio_data: np.ndarray, window_sec: float = 15.0) -> str:
+        """
+        Slower, thorough pass over a saved clue clip. Clues are often read over a music bed,
+        which the live settings (VAD + no-speech threshold) discard, so those filters are off
+        here and the clip is decoded in short windows to stop Whisper skipping long stretches.
+        """
+        if self.model is None:
+            return ""
+        model = self.model
+        clip_model_name = settings.WHISPER_CLIP_MODEL_SIZE
+        loaded_extra = False
+        if clip_model_name and clip_model_name != self.model_size:
+            # Loaded only for this pass and released afterwards so small droplets can afford it.
+            try:
+                from faster_whisper import WhisperModel
+                model = WhisperModel(clip_model_name, device="cpu", compute_type="int8", cpu_threads=1)
+                loaded_extra = True
+            except Exception as e:
+                logger.warning(f"Could not load clip model '{clip_model_name}' ({e}); using live model.")
+        try:
+            return self._transcribe_windows(model, audio_data, window_sec)
+        finally:
+            if loaded_extra:
+                del model
+                import gc
+                gc.collect()
+
+    def _transcribe_windows(self, model, audio_data: np.ndarray, window_sec: float) -> str:
+        # Speech over a music bed decodes very differently depending on where a window starts,
+        # so windows overlap by half and every window's text is kept. Some lines repeat, but a
+        # riddle that one alignment drops is usually caught by the neighbouring one.
+        # No initial prompt: in testing it made Whisper skip sung/backed speech more often.
+        sr = settings.SAMPLE_RATE
+        total = len(audio_data) / sr
+        step_sec = window_sec / 2
+        lines = []
+        start_sec = 0.0
+        while start_sec < total:
+            chunk = audio_data[int(start_sec * sr):int((start_sec + window_sec) * sr)]
+            if len(chunk) < sr:
+                break
+            try:
+                segments, _ = model.transcribe(
+                    chunk,
+                    condition_on_previous_text=False,
+                    no_speech_threshold=None,
+                    log_prob_threshold=None,
+                    vad_filter=False,
+                    beam_size=5,
+                    language="en",
+                )
+                text = " ".join(s.text.strip() for s in segments if s.text.strip())
+            except Exception as e:
+                logger.error(f"Whisper clip transcription error: {e}")
+                text = ""
+            if text:
+                t = int(start_sec)
+                lines.append(f"[{t // 60}:{t % 60:02d}] {text}")
+            if start_sec + window_sec >= total:
+                break
+            start_sec += step_sec
+        return "\n".join(lines)

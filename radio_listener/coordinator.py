@@ -26,8 +26,8 @@ from radio_listener.scraper.web_watcher import ContestWebScraper
 logger = logging.getLogger("radio_listener.coordinator")
 
 CLIPS_DIR = Path(__file__).resolve().parent.parent / "clips"
-CLUE_PRE_ROLL_SEC = 60.0
-CLUE_CAPTURE_SEC = 60.0
+CLUE_PRE_ROLL_SEC = 90.0
+CLUE_CAPTURE_SEC = 90.0
 # Whisper runs behind live audio, so keep accepting transcript text a little longer.
 CLUE_TEXT_GRACE_SEC = 30.0
 # Repeated mentions within this window extend the same on-air clue instead of creating another.
@@ -241,6 +241,21 @@ class RadioListenerCoordinator:
             self._save_captured_clue(cap)
         except Exception as e:
             logger.error(f"Failed to save clue audio clip: {e}")
+            return
+
+        audio = np.concatenate(frames)
+
+        async def retranscribe():
+            text = await asyncio.to_thread(self.stt.transcribe_clip, audio)
+            if text and self._clue_capture is cap:
+                cap["clean_text"] = text
+                cap["text_until"] = 0
+                self._save_captured_clue(cap)
+
+        try:
+            asyncio.get_running_loop().create_task(retranscribe())
+        except RuntimeError:
+            pass
 
     def _append_to_clue_capture(self, text: str):
         cap = self._clue_capture
@@ -262,7 +277,7 @@ class RadioListenerCoordinator:
             return
         clue = ContestClue(
             clue_number=cap["number"],
-            text=" ".join(cap["texts"]).strip() or "(waiting for transcript…)",
+            text=cap.get("clean_text") or " ".join(cap["texts"]).strip() or "(waiting for transcript…)",
             source="radio_stt",
             status="unconfirmed",
             audio_url=cap.get("audio_url"),

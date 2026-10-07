@@ -890,7 +890,7 @@
               ${deletable ? `<button onclick="deleteClue(${c.clue_number})" style="background:none; border:none; color:#f87171; cursor:pointer; font-size:0.75rem; padding:0 2px;" title="Delete clue">✕</button>` : ''}
             </div>
           </div>
-          <div class="clue-text" ${onAir ? 'style="font-size:0.82rem; opacity:0.9;"' : ''}>${escapeHtml(c.text)}</div>
+          <div class="clue-text" ${onAir ? 'style="font-size:0.82rem; opacity:0.9; white-space:pre-line;"' : ''}>${escapeHtml(c.text)}</div>
           ${c.audio_url ? `<audio controls preload="none" src="${API_BASE}${c.audio_url}" style="width:100%; height:28px; margin-top:0.5rem;"></audio>` : (onAir ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-top:0.4rem;">🔴 Recording on-air audio…</div>` : '')}
         </div>
       `;
