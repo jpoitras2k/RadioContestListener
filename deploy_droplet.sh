@@ -52,14 +52,24 @@ if [ "$TOTAL_RAM_MB" -lt 1200 ]; then
     MODEL_SIZE="base.en"
 fi
 
-# 8. Create environment file with Discord webhook
+# 8. Create environment file. The Discord webhook is a secret, so it is never stored in the repo:
+# it is taken from $DISCORD_WEBHOOK_URL, else kept from the existing .env, else left blank
+# (paste it into the dashboard's Discord panel, or re-run with DISCORD_WEBHOOK_URL=... ./deploy_droplet.sh).
+if [ -z "${DISCORD_WEBHOOK_URL:-}" ] && [ -f "$APP_DIR/.env" ]; then
+    DISCORD_WEBHOOK_URL=$(grep -E '^DISCORD_WEBHOOK_URL=' "$APP_DIR/.env" | head -n 1 | cut -d= -f2- || true)
+fi
+DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
+if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+    echo "--> No Discord webhook configured; Discord alerts stay off until you add one."
+fi
+
 cat << EOF > "$APP_DIR/.env"
 PORT=4173
 HOST=0.0.0.0
 AUDIO_SOURCE=stream
 STATION_STREAM_URL=https://stream.jpbgdigital.com/CJZN.m3u8?device_id=listener-daemon&player_type=web
 DISCORD_ENABLED=true
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/REDACTED
+DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
 PUSHOVER_ENABLED=false
 WHISPER_MODEL_SIZE=${MODEL_SIZE}
 WHISPER_DEVICE=cpu

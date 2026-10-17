@@ -12,7 +12,7 @@ services:
       - HOST=0.0.0.0
       - AUDIO_SOURCE=stream
       - DISCORD_ENABLED=true
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/REDACTED}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - PUSHOVER_ENABLED=false
       - WHISPER_MODEL_SIZE=distil-large-v3
       - WHISPER_DEVICE=cpu
