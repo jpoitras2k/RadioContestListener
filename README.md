@@ -2,6 +2,10 @@
 
 An automated listener and real-time alert daemon for Victoria, BC's modern rock radio station **The Zone @ 91-3 (CJZN-FM)**, specifically engineered to detect on-air contest cues, phone call-ins ("Caller 13"), and clues for **"The Secret"** (`/shhhhhh/`).
 
+![Live dashboard during The Secret contest, October 2026](docs/screenshots/dashboard.png)
+
+*The dashboard running on a 512 MB DigitalOcean Droplet during The Secret contest in October 2026. Shown here: 26 clues collected from the station website and from the radio, a live Whisper transcript of the broadcast, alerts for clues read on air and for phone lines opening, and caller guesses that were ruled out. The contest has ended and the live server is shut down. See below to run it yourself.*
+
 ---
 
 ## Architecture Overview
